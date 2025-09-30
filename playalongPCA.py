@@ -97,3 +97,5 @@ axes[1].set_ylabel('PC1')
 
 plt.tight_layout()
 plt.show()
+
+print("yay")
