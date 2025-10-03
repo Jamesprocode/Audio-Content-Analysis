@@ -10,6 +10,12 @@ from sklearn.metrics import confusion_matrix
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import StandardScaler
 
+'''
+We used Claude AI as a debugging assistant for this assignment, primarily to identify and fix errors in my feature extraction pipeline. 
+The AI helped me discover that my feature matrix was transposed (causing incorrect z-score normalization), clarified the pre-aggregation 
+normalization requirements , and provided some functions. However, We wrote the majority of the code ourselves, including the main logic and structure of the program.
+'''
+
 
 def label_extraction(folder, df):
     #parse the label out of the file name
@@ -203,7 +209,9 @@ def knn_classification(df, df_test):
         
     # Calculate accuracy
     accuracy = accuracy_score(y_test, y_pred)
+    print("="*60)
     print(f"Accuracy with k=3: {accuracy*100:.2f}%")
+    print("="*60)
 
     instrument_labels = ['flute', 'piano', 'trumpet', 'violin']
 
@@ -246,7 +254,10 @@ def main():
     #creating a new dataframe with only the features
     feature_df = df.drop(columns=['filename', 'label'])
     correlation_matrix = feature_df.corr()
-    
+    print("="*60)
+    print("Correlation Matrix:")
+    print(correlation_matrix)
+    print("="*60)
     # Identify and report the highest and lowest correlations between any two features (excluding self-correlations). Create scatter plots for these two pairs of features, including a regression line, and appropriate titles and axis labels.
     plot_correlation_and_scatter(df, correlation_matrix, feature_cols)
     
