@@ -1,17 +1,15 @@
-import librosa
-import numpy as np
-import soundfile as sf
-import matplotlib.pyplot as plt
 import re
 import os
+import librosa
+import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.metrics import accuracy_score
-from sklearn.preprocessing import StandardScaler
-import matplotlib.pyplot as plt
 import seaborn as sns
-from scipy.stats import zscore
+import matplotlib.pyplot as plt
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import confusion_matrix
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import StandardScaler
+
 
 def label_extraction(folder, df):
     #parse the label out of the file name
@@ -26,8 +24,8 @@ def label_extraction(folder, df):
     df['label'] = df['label'].astype('Int64')  # Pandas nullable integer type
     return df
 
-def feature_extraction(folder, df):
-    num_features = 16
+def feature_extraction(folder, df, feature_names):
+    num_features = len(feature_names)
     num_files = len([f for f in os.listdir(folder) if f.endswith('.wav')])
     feature_matrix = np.zeros((num_files, num_features))
     
@@ -124,56 +122,13 @@ def feature_extraction(folder, df):
     scaler = StandardScaler()
     feature_matrix = scaler.fit_transform(feature_matrix)
     
-  
-    
-    # Add all features to df
-    feature_names = ['centroid_mean', 'spread_mean', 'rolloff_mean', 'flatness_mean', 
-                     'zcr_mean', 'flux_mean'] + [f'mfcc_{i+1}_mean' for i in range(10)]
-    
     for index, file in enumerate(file_list):
         for feat_idx, feat_name in enumerate(feature_names):
             df.loc[df['filename'] == file, feat_name] = feature_matrix[index, feat_idx]
     
     return df
 
-def main():
-    
-#getting the file
-    folder = 'audios/micro_medlydb/test'
-    test_folder = 'audios/micro_medlydb/test'
-
-    #initialize the matrix with names of the audio files in the directory
-    audio_files = np.array([f for f in os.listdir(folder) if f.endswith('.wav')])
-    test_files = np.array([f for f in os.listdir(test_folder) if f.endswith('.wav')])
-
-    #create a numpy matrix to store the names of the audio files
-    df = pd.DataFrame(audio_files, columns=['filename'])
-    df_test = pd.DataFrame(test_files, columns=['filename'])
-
-    #extract the labels from the file names and store them in the dataframe
-    df = label_extraction(folder, df)
-    df_test = label_extraction(test_folder, df_test)
-
-    #feature extraction
-    df = feature_extraction(folder, df)
-    df_test = feature_extraction(test_folder, df_test)
-
-    #Compute a correlation matrix accross the calculated features (i.e., each column of features is compared to every other column of features). Report the matrix.
-    #creating a new dataframe with only the features
-    feature_df = df.drop(columns=['filename', 'label'])
-    correlation_matrix = feature_df.corr()
-    
-  
-    
-    # Identify and report the highest and lowest correlations between any two features (excluding self-correlations). Create scatter plots for these two pairs of features, including a regression line, and appropriate titles and axis labels.
-    # Get the feature columns (exclude filename and label columns)
-    feature_cols = ['centroid_mean', 'spread_mean', 'rolloff_mean', 'flatness_mean', 
-                    'zcr_mean', 'flux_mean'] + [f'mfcc_{i+1}_mean' for i in range(10)]
-
-
-    # Find highest and lowest correlations (excluding diagonal)
-
-
+def plot_correlation_and_scatter(df, correlation_matrix, feature_cols):
     # Flatten and get indices
     correlations_flat = []
     for i in range(len(feature_cols)):
@@ -192,16 +147,6 @@ def main():
     highest_corr = corr_df.loc[corr_df['abs_correlation'].idxmax()]
     lowest_corr = corr_df.loc[corr_df['abs_correlation'].idxmin()]
 
-    print("="*60)
-    print("HIGHEST CORRELATION:")
-    print(f"{highest_corr['feature1']} vs {highest_corr['feature2']}")
-    print(f"Correlation: {highest_corr['correlation']:.4f}")
-    print("="*60)
-
-    print("\nLOWEST CORRELATION:")
-    print(f"{lowest_corr['feature1']} vs {lowest_corr['feature2']}")
-    print(f"Correlation: {lowest_corr['correlation']:.4f}")
-    print("="*60)
 
     # Create scatter plots
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
@@ -213,8 +158,7 @@ def main():
     ax1.scatter(x_high, y_high, alpha=0.6, s=50, edgecolors='k', linewidths=0.5)
     ax1.set_xlabel(highest_corr['feature1'], fontsize=12)
     ax1.set_ylabel(highest_corr['feature2'], fontsize=12)
-    ax1.set_title(f"Highest Correlation: r = {highest_corr['correlation']:.4f}", 
-                fontsize=14, fontweight='bold')
+    ax1.set_title(f"Highest Correlation: r = {highest_corr['correlation']:.4f}", fontsize=14, fontweight='bold')
     ax1.grid(True, alpha=0.3)
 
     # Add regression line
@@ -230,8 +174,7 @@ def main():
     ax2.scatter(x_low, y_low, alpha=0.6, s=50, edgecolors='k', linewidths=0.5, color='orange')
     ax2.set_xlabel(lowest_corr['feature1'], fontsize=12)
     ax2.set_ylabel(lowest_corr['feature2'], fontsize=12)
-    ax2.set_title(f"Lowest Correlation: r = {lowest_corr['correlation']:.4f}", 
-                fontsize=14, fontweight='bold')
+    ax2.set_title(f"Lowest Correlation: r = {lowest_corr['correlation']:.4f}", fontsize=14, fontweight='bold')
     ax2.grid(True, alpha=0.3)
 
     # Add regression line
@@ -242,7 +185,73 @@ def main():
 
     plt.tight_layout()
     plt.show()
-      
+
+def knn_classification(df, df_test):
+    # Load the data
+    X_train = df.drop(columns=['filename', 'label']).to_numpy()
+    y_train = df['label'].to_numpy()
+
+    # Load test data
+    X_test = df_test.drop(columns=['filename', 'label']).to_numpy()
+    y_test = df_test['label'].to_numpy()
+
+    knn = KNeighborsClassifier(n_neighbors=3)
+    knn.fit(X_train, y_train)
+        
+    # Make predictions
+    y_pred = knn.predict(X_test)
+        
+    # Calculate accuracy
+    accuracy = accuracy_score(y_test, y_pred)
+    print(f"Accuracy with k=3: {accuracy*100:.2f}%")
+
+    instrument_labels = ['flute', 'piano', 'trumpet', 'violin']
+
+    cm = confusion_matrix(y_test, y_pred)
+    plt.figure(figsize=(10, 7))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+                xticklabels=np.unique(instrument_labels), yticklabels=np.unique(instrument_labels))
+    plt.xlabel('Predicted')
+    plt.ylabel('True')
+    plt.title(f'Confusion Matrix (k={3})')
+    plt.show()
+
+def main():
+    
+#getting the file
+    folder = 'audios/micro_medlydb/validate'
+    test_folder = 'audios/micro_medlydb/test'
+
+    #initialize the matrix with names of the audio files in the directory
+    audio_files = np.array([f for f in os.listdir(folder) if f.endswith('.wav')])
+    test_files = np.array([f for f in os.listdir(test_folder) if f.endswith('.wav')])
+
+    #create a numpy matrix to store the names of the audio files
+    df = pd.DataFrame(audio_files, columns=['filename'])
+    df_test = pd.DataFrame(test_files, columns=['filename'])
+    
+    #extract the labels from the file names and store them in the dataframe
+    df = label_extraction(folder, df)
+    df_test = label_extraction(test_folder, df_test)
+    
+    # Get the feature columns (exclude filename and label columns)
+    feature_cols = ['centroid_mean', 'spread_mean', 'rolloff_mean', 'flatness_mean', 'zcr_mean', 'flux_mean'] + [f'mfcc_{i+1}_mean' for i in range(10)]
+    
+    #feature extraction
+    df = feature_extraction(folder, df, feature_cols)
+    df_test = feature_extraction(test_folder, df_test, feature_cols)
+
+    
+    #Compute a correlation matrix accross the calculated features (i.e., each column of features is compared to every other column of features). Report the matrix.
+    #creating a new dataframe with only the features
+    feature_df = df.drop(columns=['filename', 'label'])
+    correlation_matrix = feature_df.corr()
+    
+    # Identify and report the highest and lowest correlations between any two features (excluding self-correlations). Create scatter plots for these two pairs of features, including a regression line, and appropriate titles and axis labels.
+    plot_correlation_and_scatter(df, correlation_matrix, feature_cols)
+    
+    # KNN Classification
+    knn_classification(df, df_test)
 
 main()
 
